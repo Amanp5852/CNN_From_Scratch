@@ -682,17 +682,79 @@ print(classifier_weights)
 
 print("\nTesting results:\n")
 
+# --------------------------------------------------
+# Visualization
+# --------------------------------------------------
+
 for i, image in enumerate(images):
 
-    prediction = predict(
+    # ------------------------------------------
+    # Original RGB image
+    # ------------------------------------------
+
+    show_rgb_image(
         image,
-        filters,
-        classifier_weights
+        title=f"Image {i}"
     )
 
-    print(
-        "Image:", i,
-        "| Target:", labels[i],
-        "| Prediction:", prediction
+    # ------------------------------------------
+    # Convolution
+    # ------------------------------------------
+
+    feature_maps = convolution_multiple_filters(
+        image,
+        filters,
+        stride=1,
+        padding=0
     )
+
+    # ------------------------------------------
+    # ReLU
+    # ------------------------------------------
+
+    activated_feature_maps = relu(
+        feature_maps
+    )
+
+    # ------------------------------------------
+    # Pooling
+    # ------------------------------------------
+
+    pooled_feature_maps = []
+
+    for feature_map in activated_feature_maps:
+
+        pooled_feature_map = max_pooling(
+            feature_map,
+            pool_size=2,
+            stride=1
+        )
+
+        pooled_feature_maps.append(
+            pooled_feature_map
+        )
+
+    pooled_feature_maps = np.array(
+        pooled_feature_maps
+    )
+
+    # ------------------------------------------
+    # Show feature maps
+    # ------------------------------------------
+
+    show_feature_maps(
+        activated_feature_maps,
+        title=f"Image {i} - ReLU Feature Maps"
+    )
+
+    # ------------------------------------------
+    # Show pooled feature maps
+    # ------------------------------------------
+
+    show_pooled_feature_maps(
+        pooled_feature_maps,
+        title=f"Image {i} - Pooled Feature Maps"
+    )
+
+
 
