@@ -1,5 +1,10 @@
 import numpy as np
 from images import images,labels
+from visualization import (
+    show_rgb_image,
+    show_feature_maps,
+    show_pooled_feature_maps
+)
 
 np.random.seed(42)
 
