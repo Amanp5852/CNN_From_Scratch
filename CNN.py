@@ -1,15 +1,5 @@
 import numpy as np
-from images import images
-
-labels = np.array([
-    1,
-    1,
-    1,
-    0,
-    0,
-    0,
-    0
-], dtype=float)
+from images import images,labels
 
 np.random.seed(42)
 
@@ -216,460 +206,488 @@ def convolution_multiple_filters(
 
     return np.array(feature_maps)
 
-# # --------------------------------------------------
-# # ReLU activation
-# # --------------------------------------------------
+# --------------------------------------------------
+# ReLU activation
+# --------------------------------------------------
 
-# def relu(x):
+def relu(x):
 
-#     return np.maximum(0, x)
+    return np.maximum(0, x)
 
-# def relu_gradient(x):
-#     return (x > 0).astype(float)
+def relu_gradient(x):
+    return (x > 0).astype(float)
 
-# def max_pooling(feature_map, pool_size=2, stride=2):
+def max_pooling(feature_map, pool_size=2, stride=2):
 
-#     height, width = feature_map.shape
+    height, width = feature_map.shape
 
-#     output_height = (height - pool_size) // stride + 1
-#     output_width = (width - pool_size) // stride + 1
+    output_height = (height - pool_size) // stride + 1
+    output_width = (width - pool_size) // stride + 1
 
-#     pooled = np.zeros((output_height, output_width))
+    pooled = np.zeros((output_height, output_width))
 
-#     for i in range(output_height):
-#         for j in range(output_width):
+    for i in range(output_height):
+        for j in range(output_width):
 
-#             row = i * stride
-#             col = j * stride
+            row = i * stride
+            col = j * stride
 
-#             region = feature_map[
-#                 row:row + pool_size,
-#                 col:col + pool_size
-#             ]
+            region = feature_map[
+                row:row + pool_size,
+                col:col + pool_size
+            ]
 
-#             pooled[i, j] = np.max(region)
+            pooled[i, j] = np.max(region)
 
-#     return pooled
+    return pooled
 
 
-# def max_pooling_gradient(
-#         feature_map,
-#         gradient_pooled,
-#         pool_size=2,
-#         stride=1):
+def max_pooling_gradient(
+        feature_map,
+        gradient_pooled,
+        pool_size=2,
+        stride=1):
 
-#     height, width = feature_map.shape
+    height, width = feature_map.shape
 
-#     gradient_feature_map = np.zeros_like(feature_map)
+    gradient_feature_map = np.zeros_like(feature_map)
 
-#     output_height, output_width = gradient_pooled.shape
+    output_height, output_width = gradient_pooled.shape
 
-#     for i in range(output_height):
+    for i in range(output_height):
 
-#         for j in range(output_width):
+        for j in range(output_width):
 
-#             row = i * stride
-#             col = j * stride
+            row = i * stride
+            col = j * stride
 
-#             region = feature_map[
-#                 row:row + pool_size,
-#                 col:col + pool_size
-#             ]
+            region = feature_map[
+                row:row + pool_size,
+                col:col + pool_size
+            ]
 
-#             max_position = np.unravel_index(
-#                 np.argmax(region),
-#                 region.shape
-#             )
+            max_position = np.unravel_index(
+                np.argmax(region),
+                region.shape
+            )
 
-#             max_row = row + max_position[0]
-#             max_col = col + max_position[1]
+            max_row = row + max_position[0]
+            max_col = col + max_position[1]
 
-#             gradient_feature_map[max_row, max_col] += (
-#                 gradient_pooled[i, j]
-#             )
+            gradient_feature_map[max_row, max_col] += (
+                gradient_pooled[i, j]
+            )
 
-#     return gradient_feature_map
+    return gradient_feature_map
 
-# # --------------------------------------------------
-# # Classifier weights
-# # --------------------------------------------------
+# --------------------------------------------------
+# Classifier weights
+# --------------------------------------------------
 
-# classifier_weights = np.random.randn(8)
+classifier_weights = np.random.randn(8)
 
-# print("\nClassifier weights:")
-# print(classifier_weights)
+print("\nClassifier weights:")
+print(classifier_weights)
 
 
-# # --------------------------------------------------
-# # Gradient of convolution filter
-# # --------------------------------------------------
+# --------------------------------------------------
+# Gradient of convolution filter
+# --------------------------------------------------
 
-# def convolution_gradient(
-#         image,
-#         filter,
-#         gradient_feature_map,
-#         stride=1):
+def convolution_gradient(
+        image,
+        filter,
+        gradient_feature_map,
+        stride=1):
 
+    # ------------------------------------------
+    # Image dimensions
+    # ------------------------------------------
 
-#     image_height, image_width = image.shape
+    image_height, image_width, input_channels = image.shape
 
-#     filter_height, filter_width = filter.shape
+    # ------------------------------------------
+    # Filter dimensions
+    # ------------------------------------------
 
+    filter_height, filter_width, filter_channels = filter.shape
 
-#     # Feature map dimensions
-#     output_height, output_width = (
-#         gradient_feature_map.shape
-#     )
+    # ------------------------------------------
+    # Check channel compatibility
+    # ------------------------------------------
 
+    if input_channels != filter_channels:
 
-#     # Gradient accumulator
-#     gradient_filter = np.zeros_like(filter)
+        raise ValueError(
+            "Number of image channels must "
+            "match number of filter channels."
+        )
 
+    # ------------------------------------------
+    # Feature map dimensions
+    # ------------------------------------------
 
-#     # Go through every feature map position
-#     for i in range(output_height):
+    output_height, output_width = (
+        gradient_feature_map.shape
+    )
 
-#         for j in range(output_width):
+    # ------------------------------------------
+    # Gradient accumulator
+    # ------------------------------------------
 
-#             row = i * stride
-#             col = j * stride
+    gradient_filter = np.zeros_like(filter)
 
+    # ------------------------------------------
+    # Go through every feature map position
+    # ------------------------------------------
 
-#             # Extract corresponding image region
-#             image_region = image[
-#                 row:row + filter_height,
-#                 col:col + filter_width
-#             ]
+    for i in range(output_height):
 
+        for j in range(output_width):
 
-#             # Gradient contribution
-#             gradient_filter += (
-#                 gradient_feature_map[i, j]
-#                 * image_region
-#             )
+            row = i * stride
+            col = j * stride
 
+            # ----------------------------------
+            # Extract corresponding RGB region
+            # ----------------------------------
 
-#     return gradient_filter
+            image_region = image[
+                row:row + filter_height,
+                col:col + filter_width,
+                :
+            ]
 
-# # --------------------------------------------------
-# # Training settings
-# # --------------------------------------------------
+            # ----------------------------------
+            # Gradient contribution
+            # ----------------------------------
 
-# learning_rate = 0.01
-# epochs = 100
+            gradient_filter += (
+                gradient_feature_map[i, j]
+                * image_region
+            )
 
-# # --------------------------------------------------
-# # Sigmoid activation
-# # --------------------------------------------------
+    return gradient_filter
 
-# def sigmoid(x):
+# --------------------------------------------------
+# Training settings
+# --------------------------------------------------
 
-#     return 1 / (
-#         1 + np.exp(-x)
-#     )
+learning_rate = 0.01
+epochs = 100
 
-# # --------------------------------------------------
-# # Convert image to prediction
-# # --------------------------------------------------
+# --------------------------------------------------
+# Sigmoid activation
+# --------------------------------------------------
 
-# def predict(image, filters, classifier_weights):
+def sigmoid(x):
 
-#     # Convolution with multiple filters
-#     feature_maps = convolution_multiple_filters(
-#         image,
-#         filters,
-#         stride=1,
-#         padding=0
-#     )
+    return 1 / (
+        1 + np.exp(-x)
+    )
 
-#     # Apply ReLU
-#     activated_feature_maps = relu(
-#         feature_maps
-#     )
+# --------------------------------------------------
+# Convert image to prediction
+# --------------------------------------------------
 
-#     # Apply max pooling to each feature map
-#     pooled_feature_maps = []
+def predict(image, filters, classifier_weights):
 
-#     for feature_map in activated_feature_maps:
+    # Convolution with multiple filters
+    feature_maps = convolution_multiple_filters(
+        image,
+        filters,
+        stride=1,
+        padding=0
+    )
 
-#         pooled_feature_map = max_pooling(
-#             feature_map,
-#             pool_size=2,
-#             stride=1
-#         )
+    # Apply ReLU
+    activated_feature_maps = relu(
+        feature_maps
+    )
 
-#         pooled_feature_maps.append(
-#             pooled_feature_map
-#         )
+    # Apply max pooling to each feature map
+    pooled_feature_maps = []
 
-#     pooled_feature_maps = np.array(
-#         pooled_feature_maps
-#     )
+    for feature_map in activated_feature_maps:
 
-#     # Flatten all pooled feature maps
-#     flattened_features = pooled_feature_maps.flatten()
+        pooled_feature_map = max_pooling(
+            feature_map,
+            pool_size=2,
+            stride=1
+        )
 
-#     # Classifier weighted sum
-#     z = np.dot(
-#         flattened_features,
-#         classifier_weights
-#     )
+        pooled_feature_maps.append(
+            pooled_feature_map
+        )
 
-#     # Sigmoid
-#     prediction = sigmoid(z)
+    pooled_feature_maps = np.array(
+        pooled_feature_maps
+    )
 
-#     return prediction
+    # Flatten all pooled feature maps
+    flattened_features = pooled_feature_maps.flatten()
 
-# # --------------------------------------------------
-# # Training loop
-# # --------------------------------------------------
+    # Classifier weighted sum
+    z = np.dot(
+        flattened_features,
+        classifier_weights
+    )
 
-# for epoch in range(epochs):
+    # Sigmoid
+    prediction = sigmoid(z)
 
-#     total_loss = 0
+    return prediction
 
+# --------------------------------------------------
+# Training loop
+# --------------------------------------------------
 
-#     # Process every image
-#     for image, target in zip(images, labels):
+for epoch in range(epochs):
+
+    total_loss = 0
+
+
+    # Process every image
+    for image, target in zip(images, labels):
 
                 
-#         # ------------------------------------------
-#         # Forward pass
-#         # ------------------------------------------
+        # ------------------------------------------
+        # Forward pass
+        # ------------------------------------------
 
-#         feature_maps = convolution_multiple_filters(
-#             image,
-#             filters,
-#             stride=1,
-#             padding=0
-#         )
+        feature_maps = convolution_multiple_filters(
+            image,
+            filters,
+            stride=1,
+            padding=0
+        )
 
-#         activated_feature_maps = relu(
-#             feature_maps
-#         )
+        activated_feature_maps = relu(
+            feature_maps
+        )
 
-#         pooled_feature_maps = []
+        pooled_feature_maps = []
 
-#         for feature_map in activated_feature_maps:
+        for feature_map in activated_feature_maps:
 
-#             pooled_feature_map = max_pooling(
-#                 feature_map,
-#                 pool_size=2,
-#                 stride=1
-#             )
+            pooled_feature_map = max_pooling(
+                feature_map,
+                pool_size=2,
+                stride=1
+            )
 
-#             pooled_feature_maps.append(
-#                 pooled_feature_map
-#             )
+            pooled_feature_maps.append(
+                pooled_feature_map
+            )
 
-#         pooled_feature_maps = np.array(
-#             pooled_feature_maps
-#         )
+        pooled_feature_maps = np.array(
+            pooled_feature_maps
+        )
 
-#         flattened_features = pooled_feature_maps.flatten()
+        flattened_features = pooled_feature_maps.flatten()
 
-#         z = np.dot(
-#             flattened_features,
-#             classifier_weights
-#         )
+        z = np.dot(
+            flattened_features,
+            classifier_weights
+        )
 
-#         prediction = sigmoid(z)
-
-
-#         # ------------------------------------------
-#         # Loss
-#         # ------------------------------------------
-
-#         loss = (
-#             prediction - target
-#         ) ** 2
-
-#         total_loss += loss
+        prediction = sigmoid(z)
 
 
-#         # ------------------------------------------
-#         # Backpropagation
-#         # ------------------------------------------
+        # ------------------------------------------
+        # Loss
+        # ------------------------------------------
 
-#         # Loss gradient
-#         dL_dprediction = (
-#             2 * (prediction - target)
-#         )
+        loss = (
+            prediction - target
+        ) ** 2
 
-#         # Sigmoid gradient
-#         dprediction_dz = (
-#             prediction
-#             * (1 - prediction)
-#         )
+        total_loss += loss
 
 
-#         # ------------------------------------------
-#         # Gradient of classifier weights
-#         # ------------------------------------------
+        # ------------------------------------------
+        # Backpropagation
+        # ------------------------------------------
 
-#         gradient_classifier_weights = (
-#             dL_dprediction
-#             * dprediction_dz
-#             * flattened_features
-#         )
+        # Loss gradient
+        dL_dprediction = (
+            2 * (prediction - target)
+        )
 
-
-#         # ------------------------------------------
-#         # Gradient flowing back to pooled feature maps
-#         # ------------------------------------------
-
-#         gradient_pooled_features = (
-#             dL_dprediction
-#             * dprediction_dz
-#             * classifier_weights
-#         )
-
-#         gradient_pooled_feature_maps = (
-#             gradient_pooled_features.reshape(
-#                 pooled_feature_maps.shape
-#             )
-#         )
+        # Sigmoid gradient
+        dprediction_dz = (
+            prediction
+            * (1 - prediction)
+        )
 
 
-#         # ------------------------------------------
-#         # Gradient through max pooling
-#         # ------------------------------------------
+        # ------------------------------------------
+        # Gradient of classifier weights
+        # ------------------------------------------
 
-#         gradient_activated_feature_maps = []
-
-#         for i in range(len(filters)):
-
-#             gradient_activated_feature_map = max_pooling_gradient(
-#                 activated_feature_maps[i],
-#                 gradient_pooled_feature_maps[i],
-#                 pool_size=2,
-#                 stride=1
-#             )
-
-#             gradient_activated_feature_maps.append(
-#                 gradient_activated_feature_map
-#             )
-
-#         gradient_activated_feature_maps = np.array(
-#             gradient_activated_feature_maps
-#         )
+        gradient_classifier_weights = (
+            dL_dprediction
+            * dprediction_dz
+            * flattened_features
+        )
 
 
-#         # ------------------------------------------
-#         # Gradient through ReLU
-#         # ------------------------------------------
+        # ------------------------------------------
+        # Gradient flowing back to pooled feature maps
+        # ------------------------------------------
 
-#         gradient_feature_maps = (
-#             gradient_activated_feature_maps
-#             * relu_gradient(feature_maps)
-#         )
+        gradient_pooled_features = (
+            dL_dprediction
+            * dprediction_dz
+            * classifier_weights
+        )
 
-
-#         # ------------------------------------------
-#         # Gradient of convolution filters
-#         # ------------------------------------------
-
-#         gradient_filters = []
-
-#         for i in range(len(filters)):
-
-#             gradient_filter = convolution_gradient(
-#                 image,
-#                 filters[i],
-#                 gradient_feature_maps[i],
-#                 stride=1
-#             )
-
-#             gradient_filters.append(
-#                 gradient_filter
-#             )
-
-#         gradient_filters = np.array(
-#             gradient_filters
-#         )
+        gradient_pooled_feature_maps = (
+            gradient_pooled_features.reshape(
+                pooled_feature_maps.shape
+            )
+        )
 
 
-#         # ------------------------------------------
-#         # Update classifier weights
-#         # ------------------------------------------
+        # ------------------------------------------
+        # Gradient through max pooling
+        # ------------------------------------------
 
-#         classifier_weights = (
-#             classifier_weights
-#             - learning_rate
-#             * gradient_classifier_weights
-#         )
+        gradient_activated_feature_maps = []
+
+        for i in range(len(filters)):
+
+            gradient_activated_feature_map = max_pooling_gradient(
+                activated_feature_maps[i],
+                gradient_pooled_feature_maps[i],
+                pool_size=2,
+                stride=1
+            )
+
+            gradient_activated_feature_maps.append(
+                gradient_activated_feature_map
+            )
+
+        gradient_activated_feature_maps = np.array(
+            gradient_activated_feature_maps
+        )
 
 
-#         # ------------------------------------------
-#         # Update convolution filter
-#         # ------------------------------------------
+        # ------------------------------------------
+        # Gradient through ReLU
+        # ------------------------------------------
 
-#         filters = (
-#             filters
-#             - learning_rate
-#             * gradient_filters
-#         )
+        gradient_feature_maps = (
+            gradient_activated_feature_maps
+            * relu_gradient(feature_maps)
+        )
 
-#     # ----------------------------------------------
-#     # Print progress
-#     # ----------------------------------------------
 
-#     if epoch % 10 == 0:
+        # ------------------------------------------
+        # Gradient of convolution filters
+        # ------------------------------------------
 
-#         average_loss = (
-#             total_loss / len(images)
-#         )
+        gradient_filters = []
 
-#         print(
-#             "Epoch:",
-#             epoch,
-#             "Average Loss:",
-#             average_loss
-#         )
+        for i in range(len(filters)):
 
-# print("\nLearned filter:")
-# print(filters)
-# for i, learned_filter in enumerate(filters):
-#     print(f"\nFilter {i}:")
-#     print(learned_filter)
+            gradient_filter = convolution_gradient(
+                image,
+                filters[i],
+                gradient_feature_maps[i],
+                stride=1
+            )
 
-# for i, image in enumerate(images):
+            gradient_filters.append(
+                gradient_filter
+            )
 
-#     feature_maps = convolution_multiple_filters(
-#         image,
-#         filters,
-#         stride=1,
-#         padding=0
-#     )
+        gradient_filters = np.array(
+            gradient_filters
+        )
 
-#     activated_feature_maps = relu(feature_maps)
 
-#     print(f"\nImage {i}")
+        # ------------------------------------------
+        # Update classifier weights
+        # ------------------------------------------
+
+        classifier_weights = (
+            classifier_weights
+            - learning_rate
+            * gradient_classifier_weights
+        )
+
+
+        # ------------------------------------------
+        # Update convolution filter
+        # ------------------------------------------
+
+        filters = (
+            filters
+            - learning_rate
+            * gradient_filters
+        )
+
+    # ----------------------------------------------
+    # Print progress
+    # ----------------------------------------------
+
+    if epoch % 10 == 0:
+
+        average_loss = (
+            total_loss / len(images)
+        )
+
+        print(
+            "Epoch:",
+            epoch,
+            "Average Loss:",
+            average_loss
+        )
+
+print("\nLearned filter:")
+print(filters)
+for i, learned_filter in enumerate(filters):
+    print(f"\nFilter {i}:")
+    print(learned_filter)
+
+for i, image in enumerate(images):
+
+    feature_maps = convolution_multiple_filters(
+        image,
+        filters,
+        stride=1,
+        padding=0
+    )
+
+    activated_feature_maps = relu(feature_maps)
+
+    print(f"\nImage {i}")
     
-#     for j in range(len(filters)):
-#         print(f"\nFilter {j} feature map:")
-#         print(activated_feature_maps[j])
+    for j in range(len(filters)):
+        print(f"\nFilter {j} feature map:")
+        print(activated_feature_maps[j])
 
-# print("\nFinal classifier weights:")
-# print(classifier_weights)
+print("\nFinal classifier weights:")
+print(classifier_weights)
 
-# # --------------------------------------------------
-# # Testing
-# # --------------------------------------------------
+# --------------------------------------------------
+# Testing
+# --------------------------------------------------
 
-# print("\nTesting results:\n")
+print("\nTesting results:\n")
 
-# for i, image in enumerate(images):
+for i, image in enumerate(images):
 
-#     prediction = predict(
-#         image,
-#         filters,
-#         classifier_weights
-#     )
+    prediction = predict(
+        image,
+        filters,
+        classifier_weights
+    )
 
-#     print(
-#         "Image:", i,
-#         "| Target:", labels[i],
-#         "| Prediction:", prediction
-#     )
+    print(
+        "Image:", i,
+        "| Target:", labels[i],
+        "| Prediction:", prediction
+    )
 
