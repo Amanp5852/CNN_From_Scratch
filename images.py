@@ -1,5 +1,8 @@
 import numpy as np
 
+
+# Understanding of different loss equation
+
 # --------------------------------------------------
 # RGB Image 1
 # --------------------------------------------------
