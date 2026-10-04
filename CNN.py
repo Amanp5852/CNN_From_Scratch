@@ -1,10 +1,14 @@
 import numpy as np
-from images import images,labels
-from visualization import (
-    show_rgb_image,
-    show_feature_maps,
-    show_pooled_feature_maps
+import cv2
+from images import (
+    train_images,
+    train_labels,
+    validation_images,
+    validation_labels,
+    test_images,
+    test_labels
 )
+from visualization import show_image_comparison
 
 np.random.seed(42)
 
@@ -453,7 +457,7 @@ for epoch in range(epochs):
 
 
     # Process every image
-    for image, target in zip(images, labels):
+    for image, target in zip(train_images, train_labels):
 
                 
         # ------------------------------------------
@@ -640,7 +644,7 @@ for epoch in range(epochs):
     if epoch % 10 == 0:
 
         average_loss = (
-            total_loss / len(images)
+            total_loss / len(train_images)
         )
 
         print(
@@ -650,13 +654,69 @@ for epoch in range(epochs):
             average_loss
         )
 
+# --------------------------------------------------
+# Validation
+# --------------------------------------------------
+
+validation_loss = 0
+correct_predictions = 0
+
+for image, target in zip(
+    validation_images,
+    validation_labels
+):
+
+    # Get prediction
+    prediction = predict(
+        image,
+        filters,
+        classifier_weights
+    )
+
+    # Calculate loss
+    loss = (
+        prediction - target
+    ) ** 2
+
+    validation_loss += loss
+
+    # Convert prediction into class
+    if prediction >= 0.5:
+        predicted_class = 1
+    else:
+        predicted_class = 0
+
+    # Check prediction
+    if predicted_class == target:
+        correct_predictions += 1
+
+
+# Average validation loss
+validation_loss /= len(validation_images)
+
+
+# Validation accuracy
+validation_accuracy = (
+    correct_predictions
+    / len(validation_images)
+) * 100
+
+
+print("\nValidation Loss:", validation_loss)
+
+print(
+    "Validation Accuracy:",
+    validation_accuracy,
+    "%"
+)
+
 print("\nLearned filter:")
 print(filters)
 for i, learned_filter in enumerate(filters):
     print(f"\nFilter {i}:")
     print(learned_filter)
 
-for i, image in enumerate(images):
+for i, image in enumerate(train_images):
 
     feature_maps = convolution_multiple_filters(
         image,
@@ -677,30 +737,12 @@ print("\nFinal classifier weights:")
 print(classifier_weights)
 
 # --------------------------------------------------
-# Testing
-# --------------------------------------------------
-
-print("\nTesting results:\n")
-
-# --------------------------------------------------
 # Visualization
 # --------------------------------------------------
 
-for i, image in enumerate(images):
+for i, image in enumerate(train_images):
 
-    # ------------------------------------------
-    # Original RGB image
-    # ------------------------------------------
-
-    show_rgb_image(
-        image,
-        title=f"Image {i}"
-    )
-
-    # ------------------------------------------
     # Convolution
-    # ------------------------------------------
-
     feature_maps = convolution_multiple_filters(
         image,
         filters,
@@ -708,18 +750,12 @@ for i, image in enumerate(images):
         padding=0
     )
 
-    # ------------------------------------------
     # ReLU
-    # ------------------------------------------
-
     activated_feature_maps = relu(
         feature_maps
     )
 
-    # ------------------------------------------
     # Pooling
-    # ------------------------------------------
-
     pooled_feature_maps = []
 
     for feature_map in activated_feature_maps:
@@ -738,23 +774,26 @@ for i, image in enumerate(images):
         pooled_feature_maps
     )
 
-    # ------------------------------------------
-    # Show feature maps
-    # ------------------------------------------
 
-    show_feature_maps(
+    # Show everything in one window
+    show_image_comparison(
+        image,
         activated_feature_maps,
-        title=f"Image {i} - ReLU Feature Maps"
-    )
-
-    # ------------------------------------------
-    # Show pooled feature maps
-    # ------------------------------------------
-
-    show_pooled_feature_maps(
         pooled_feature_maps,
-        title=f"Image {i} - Pooled Feature Maps"
+        i
     )
 
+
+    # Wait for keyboard input
+    key = cv2.waitKey(0) & 0xFF
+
+
+    # ESC → exit visualization
+    if key == 27:
+        break
+
+
+# Close window after visualization
+cv2.destroyAllWindows()
 
 
