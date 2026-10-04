@@ -1,54 +1,94 @@
 import numpy as np
-import cv2
+
+
+def create_vertical_image():
+    image = np.zeros((5, 5, 3))
+
+    thickness = np.random.randint(1, 3)
+    start_col = np.random.randint(0, 5 - thickness)
+
+    intensity = np.random.uniform(0.7, 1.0)
+
+    image[:, start_col:start_col + thickness, 0] = intensity
+
+    return image
+
+
+def create_horizontal_image():
+    image = np.zeros((5, 5, 3))
+
+    thickness = np.random.randint(1, 3)
+    start_row = np.random.randint(0, 5 - thickness)
+
+    intensity = np.random.uniform(0.7, 1.0)
+
+    image[start_row:start_row + thickness, :, 1] = intensity
+
+    return image
 
 
 # --------------------------------------------------
-# RGB Image 1
+# Create dataset
 # --------------------------------------------------
 
-image_1 = np.zeros((5, 5, 3))
-
-# Red channel
-image_1[:, :, 0] = np.array([
-    [1, 1, 0, 0, 0],
-    [1, 1, 0, 0, 0],
-    [1, 1, 0, 0, 0],
-    [1, 1, 0, 0, 0],
-    [1, 1, 0, 0, 0]
-])
-
-# Green channel
-image_1[:, :, 1] = 0
-
-# Blue channel
-image_1[:, :, 2] = 0
+images = []
+labels = []
 
 
-# --------------------------------------------------
-# RGB Image 2
-# --------------------------------------------------
+# Class 1 → red vertical
+for _ in range(50):
 
-image_2 = np.zeros((5, 5, 3))
+    image = create_vertical_image()
 
-# Green channel
-image_2[:, :, 1] = np.array([
-    [0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0],
-    [1, 1, 1, 1, 1],
-    [1, 1, 1, 1, 1],
-    [0, 0, 0, 0, 0]
-])
+    images.append(image)
+    labels.append(1)
 
 
-# --------------------------------------------------
-# Dataset
-# --------------------------------------------------
+# Class 0 → green horizontal
+for _ in range(50):
 
-images = np.array([
-    image_1,
-    image_2
-])
+    image = create_horizontal_image()
+
+    images.append(image)
+    labels.append(0)
+
+
+images = np.array(images)
+labels = np.array(labels)
+
 
 print("Dataset shape:", images.shape)
+print("Labels shape:", labels.shape)
 
-labels = np.array([1, 0])
+
+# --------------------------------------------------
+# Shuffle dataset
+# --------------------------------------------------
+
+indices = np.random.permutation(len(images))
+
+images = images[indices]
+labels = labels[indices]
+
+
+# --------------------------------------------------
+# Train / Validation / Test split
+# --------------------------------------------------
+
+train_end = int(0.70 * len(images))
+validation_end = int(0.85 * len(images))
+
+
+train_images = images[:train_end]
+train_labels = labels[:train_end]
+
+validation_images = images[train_end:validation_end]
+validation_labels = labels[train_end:validation_end]
+
+test_images = images[validation_end:]
+test_labels = labels[validation_end:]
+
+
+print("Training set:", train_images.shape)
+print("Validation set:", validation_images.shape)
+print("Test set:", test_images.shape)
