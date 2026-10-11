@@ -14,6 +14,8 @@ np.random.seed(42)
 
 filters = np.random.randn(2, 3, 3, 3)
 
+filter_biases = np.zeros(len(filters))
+
 print("\nInitial filter:")
 print(filters)
 
@@ -87,10 +89,12 @@ def convolution(image, filter, stride=1, padding=0):
     return feature_map
 
 def convolution_multi_channel(
-        image,
-        filter,
-        stride=1,
-        padding=0):
+    image,
+    filter,
+    stride=1,
+    padding=0,
+    bias=0.0
+):
 
     # ------------------------------------------
     # Add padding if needed
@@ -187,28 +191,27 @@ def convolution_multi_channel(
             # Multiply and sum
             # ----------------------------------
 
-            feature_map[i, j] = np.sum(
-                image_region * filter
-            )
-
+            feature_map[i, j] = np.sum(image_region * filter) + bias
 
     return feature_map
 
 def convolution_multiple_filters(
-        image,
-        filters,
-        stride=1,
-        padding=0):
-
+    image,
+    filters,
+    filter_biases,
+    stride=1,
+    padding=0
+):
     feature_maps = []
 
-    for filter in filters:
+    for i, filter in enumerate(filters):
 
         feature_map = convolution_multi_channel(
             image,
             filter,
             stride=stride,
-            padding=padding
+            padding=padding,
+            bias=filter_biases[i]
         )
 
         feature_maps.append(feature_map)
@@ -294,6 +297,8 @@ def max_pooling_gradient(
 # --------------------------------------------------
 
 classifier_weights = np.random.randn(8)
+
+classifier_bias = 0.0
 
 print("\nClassifier weights:")
 print(classifier_weights)
@@ -399,12 +404,19 @@ def sigmoid(x):
 # Convert image to prediction
 # --------------------------------------------------
 
-def predict(image, filters, classifier_weights):
+def predict(
+    image,
+    filters,
+    filter_biases,
+    classifier_weights,
+    classifier_bias
+):
 
     # Convolution with multiple filters
     feature_maps = convolution_multiple_filters(
         image,
         filters,
+        filter_biases,
         stride=1,
         padding=0
     )
@@ -437,10 +449,7 @@ def predict(image, filters, classifier_weights):
     flattened_features = pooled_feature_maps.flatten()
 
     # Classifier weighted sum
-    z = np.dot(
-        flattened_features,
-        classifier_weights
-    )
+    z = np.dot(flattened_features, classifier_weights) + classifier_bias
 
     # Sigmoid
     prediction = sigmoid(z)
@@ -467,6 +476,7 @@ for epoch in range(epochs):
         feature_maps = convolution_multiple_filters(
             image,
             filters,
+            filter_biases,
             stride=1,
             padding=0
         )
@@ -495,10 +505,7 @@ for epoch in range(epochs):
 
         flattened_features = pooled_feature_maps.flatten()
 
-        z = np.dot(
-            flattened_features,
-            classifier_weights
-        )
+        z = np.dot(flattened_features, classifier_weights) + classifier_bias
 
         prediction = sigmoid(z)
 
@@ -529,14 +536,16 @@ for epoch in range(epochs):
             * (1 - prediction)
         )
 
+        gradient_classifier_bias = (
+            dL_dprediction * dprediction_dz
+        )
 
         # ------------------------------------------
         # Gradient of classifier weights
         # ------------------------------------------
 
         gradient_classifier_weights = (
-            dL_dprediction
-            * dprediction_dz
+            gradient_classifier_bias
             * flattened_features
         )
 
@@ -546,8 +555,7 @@ for epoch in range(epochs):
         # ------------------------------------------
 
         gradient_pooled_features = (
-            dL_dprediction
-            * dprediction_dz
+            gradient_classifier_bias
             * classifier_weights
         )
 
@@ -589,6 +597,11 @@ for epoch in range(epochs):
         gradient_feature_maps = (
             gradient_activated_feature_maps
             * relu_gradient(feature_maps)
+        )
+
+        gradient_filter_biases = np.sum(
+            gradient_feature_maps,
+            axis=(1, 2)
         )
 
 
@@ -637,6 +650,14 @@ for epoch in range(epochs):
             * gradient_filters
         )
 
+
+        classifier_bias -= (
+            learning_rate * gradient_classifier_bias
+        )
+
+        filter_biases -= (
+            learning_rate * gradient_filter_biases
+        )
     # ----------------------------------------------
     # Print progress
     # ----------------------------------------------
@@ -670,7 +691,9 @@ for image, target in zip(
     prediction = predict(
         image,
         filters,
-        classifier_weights
+        filter_biases,
+        classifier_weights,
+        classifier_bias
     )
 
     # Calculate loss
@@ -710,6 +733,40 @@ print(
     "%"
 )
 
+# --------------------------------------------------
+# Test evaluation
+# --------------------------------------------------
+
+test_loss = 0
+correct_predictions = 0
+
+for image, target in zip(test_images, test_labels):
+
+    prediction = predict(
+        image,
+        filters,
+        filter_biases,
+        classifier_weights,
+        classifier_bias
+    )
+
+    loss = (prediction - target) ** 2
+    test_loss += loss
+
+    predicted_class = 1 if prediction >= 0.5 else 0
+
+    if predicted_class == target:
+        correct_predictions += 1
+
+test_loss /= len(test_images)
+
+test_accuracy = (
+    correct_predictions / len(test_images)
+) * 100
+
+print("\nTest Loss:", test_loss)
+print("Test Accuracy:", test_accuracy, "%")
+
 print("\nLearned filter:")
 print(filters)
 for i, learned_filter in enumerate(filters):
@@ -721,6 +778,7 @@ for i, image in enumerate(train_images):
     feature_maps = convolution_multiple_filters(
         image,
         filters,
+        filter_biases,
         stride=1,
         padding=0
     )
@@ -736,6 +794,9 @@ for i, image in enumerate(train_images):
 print("\nFinal classifier weights:")
 print(classifier_weights)
 
+print("Learned filter biases:", filter_biases)
+print("Learned classifier bias:", classifier_bias)
+
 # --------------------------------------------------
 # Visualization
 # --------------------------------------------------
@@ -746,6 +807,7 @@ for i, image in enumerate(train_images):
     feature_maps = convolution_multiple_filters(
         image,
         filters,
+        filter_biases,
         stride=1,
         padding=0
     )
