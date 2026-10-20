@@ -209,6 +209,54 @@ def cross_entropy_loss(probabilities, true_class):
 
     return loss
 
+def dense_layer_backward(
+    flattened_features,
+    probabilities,
+    true_class,
+    classifier_weights
+):
+    """
+    Backpropagation through softmax + cross-entropy
+    and the dense layer.
+
+    flattened_features: (450,)
+    probabilities:      (5,)
+    true_class:         integer from 0 to 4
+    classifier_weights: (450, 5)
+
+    Returns:
+        gradient_logits:           (5,)
+        gradient_classifier_weights: (450, 5)
+        gradient_classifier_biases:  (5,)
+        gradient_flattened_features: (450,)
+    """
+
+    # 1. Gradient of cross-entropy + softmax
+    gradient_logits = probabilities.copy()
+    gradient_logits[true_class] -= 1.0
+
+    # 2. Gradient of dense-layer weights
+    gradient_classifier_weights = np.outer(
+        flattened_features,
+        gradient_logits
+    )
+
+    # 3. Gradient of dense-layer biases
+    gradient_classifier_biases = gradient_logits.copy()
+
+    # 4. Pass gradient backward to the flattened features
+    gradient_flattened_features = (
+        classifier_weights @ gradient_logits
+    )
+
+    return (
+        gradient_logits,
+        gradient_classifier_weights,
+        gradient_classifier_biases,
+        gradient_flattened_features
+    )
+
+
 # --------------------------------------------------
 # 7. FORWARD PASS FOR ONE IMAGE
 # --------------------------------------------------
@@ -302,3 +350,42 @@ loss = cross_entropy_loss(
 )
 
 print("\nCross-entropy loss:", loss)
+
+# --------------------------------------------------
+# 9. TEST DENSE-LAYER BACKPROPAGATION
+# --------------------------------------------------
+
+(
+    gradient_logits,
+    gradient_classifier_weights,
+    gradient_classifier_biases,
+    gradient_flattened_features
+) = dense_layer_backward(
+    result["flattened_features"],
+    result["probabilities"],
+    y_train[sample_index],
+    classifier_weights
+)
+
+print("\nDENSE-LAYER BACKPROPAGATION")
+print("Gradient logits:", gradient_logits.shape)
+print(
+    "Gradient classifier weights:",
+    gradient_classifier_weights.shape
+)
+print(
+    "Gradient classifier biases:",
+    gradient_classifier_biases.shape
+)
+print(
+    "Gradient flattened features:",
+    gradient_flattened_features.shape
+)
+
+print("\nGradient logits values:")
+print(gradient_logits)
+
+print(
+    "\nGradient sum:",
+    np.sum(gradient_logits)
+)
