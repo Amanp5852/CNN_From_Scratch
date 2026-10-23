@@ -141,24 +141,28 @@ def relu(feature_maps):
 
 def max_pooling(feature_maps, pool_size=2, stride=2):
     """
-    feature_maps: (filters, H, W)
+    Forward max pooling.
 
     Returns:
-        (filters, pooled_H, pooled_W)
+        pooled: (filters, pooled_H, pooled_W)
+        max_positions: (filters, pooled_H, pooled_W, 2)
+
+    Each max_positions entry stores the (row, column)
+    of the maximum within its local pooling window.
     """
 
     num_filters, height, width = feature_maps.shape
 
-    output_height = (
-        (height - pool_size) // stride
-    ) + 1
-
-    output_width = (
-        (width - pool_size) // stride
-    ) + 1
+    output_height = ((height - pool_size) // stride) + 1
+    output_width = ((width - pool_size) // stride) + 1
 
     pooled = np.zeros(
         (num_filters, output_height, output_width)
+    )
+
+    max_positions = np.zeros(
+        (num_filters, output_height, output_width, 2),
+        dtype=np.int64
     )
 
     for f in range(num_filters):
@@ -174,10 +178,118 @@ def max_pooling(feature_maps, pool_size=2, stride=2):
                     w_start:w_start + pool_size
                 ]
 
-                pooled[f, i, j] = np.max(region)
+                # Find the maximum value in this region.
+                flat_index = np.argmax(region)
+                local_row, local_col = np.unravel_index(
+                    flat_index,
+                    region.shape
+                )
 
-    return pooled
+                pooled[f, i, j] = region[local_row, local_col]
 
+                # Store the maximum's position relative
+                # to this pooling window.
+                max_positions[f, i, j] = (
+                    local_row,
+                    local_col
+                )
+
+    return pooled, max_positions
+
+def max_pooling_backward(
+    gradient_pooled,
+    max_positions,
+    input_shape,
+    pool_size=2,
+    stride=2
+):
+    """
+    Distributes pooled gradients to the positions
+    that won during the forward max-pooling pass.
+
+    gradient_pooled: shape (filters, pooled_H, pooled_W)
+    max_positions:   shape (filters, pooled_H, pooled_W, 2)
+    input_shape:     original feature-map shape
+    """
+
+    gradient_input = np.zeros(input_shape, dtype=np.float64)
+
+    num_filters, output_height, output_width = (
+        gradient_pooled.shape
+    )
+
+    for f in range(num_filters):
+        for i in range(output_height):
+            for j in range(output_width):
+
+                h_start = i * stride
+                w_start = j * stride
+
+                local_row, local_col = max_positions[f, i, j]
+
+                gradient_input[
+                    f,
+                    h_start + local_row,
+                    w_start + local_col
+                ] += gradient_pooled[f, i, j]
+
+    return gradient_input
+
+
+def relu_backward(gradient_output, convolution_maps):
+    """
+    Backpropagates through ReLU.
+
+    Positive convolution outputs pass the gradient.
+    Zero or negative convolution outputs receive zero.
+    """
+
+    gradient_input = gradient_output.copy()
+
+    gradient_input[convolution_maps <= 0] = 0
+
+    return gradient_input
+
+def convolution_backward(image, gradient_feature_maps, filters):
+    """
+    Calculates gradients for convolution filters and biases.
+
+    image:                 (H, W, channels)
+    gradient_feature_maps: (num_filters, out_H, out_W)
+    filters:               (num_filters, filter_H, filter_W, channels)
+
+    Returns:
+        gradient_filters:     same shape as filters
+        gradient_filter_biases: (num_filters,)
+    """
+
+    num_filters, filter_height, filter_width, channels = (
+        filters.shape
+    )
+
+    _, output_height, output_width = gradient_feature_maps.shape
+
+    gradient_filters = np.zeros_like(filters)
+    gradient_filter_biases = np.zeros(num_filters)
+
+    for f in range(num_filters):
+
+        for i in range(output_height):
+            for j in range(output_width):
+
+                region = image[
+                    i:i + filter_height,
+                    j:j + filter_width,
+                    :
+                ]
+
+                gradient = gradient_feature_maps[f, i, j]
+
+                gradient_filters[f] += region * gradient
+
+                gradient_filter_biases[f] += gradient
+
+    return gradient_filters, gradient_filter_biases
 
 # --------------------------------------------------
 # 6. SOFTMAX
@@ -274,10 +386,10 @@ def forward_pass(image, return_intermediates=False):
     activated_maps = relu(convolution_maps)
 
     # Max pooling
-    pooled_maps = max_pooling(
-        activated_maps,
-        pool_size=2,
-        stride=2
+    pooled_maps, max_positions = max_pooling(
+    activated_maps,
+    pool_size=2,
+    stride=2
     )
 
     # Flatten all pooled feature maps into one vector.
@@ -299,6 +411,7 @@ def forward_pass(image, return_intermediates=False):
             "pooled_maps": pooled_maps,
             "flattened_features": flattened_features,
             "logits": logits,
+            "max_positions": max_positions,
             "probabilities": probabilities
         }
 
@@ -388,4 +501,65 @@ print(gradient_logits)
 print(
     "\nGradient sum:",
     np.sum(gradient_logits)
+)
+
+# --------------------------------------------------
+# 10. BACKPROPAGATION THROUGH FLATTEN, POOLING, RELU
+# --------------------------------------------------
+
+# A. Reverse flattening.
+gradient_pooled_maps = gradient_flattened_features.reshape(
+    result["pooled_maps"].shape
+)
+
+# B. Reverse max pooling.
+gradient_activated_maps = max_pooling_backward(
+    gradient_pooled=gradient_pooled_maps,
+    max_positions=result["max_positions"],
+    input_shape=result["activated_maps"].shape,
+    pool_size=2,
+    stride=2
+)
+
+# C. Reverse ReLU.
+gradient_convolution_maps = relu_backward(
+    gradient_output=gradient_activated_maps,
+    convolution_maps=result["convolution_maps"]
+)
+
+print("\nPOOLING AND RELU BACKPROPAGATION")
+print("Gradient pooled maps:", gradient_pooled_maps.shape)
+print("Gradient activated maps:", gradient_activated_maps.shape)
+print("Gradient convolution maps:", gradient_convolution_maps.shape)
+
+print(
+    "Nonzero convolution gradients:",
+    np.count_nonzero(gradient_convolution_maps)
+)
+
+# --------------------------------------------------
+# 11. CONVOLUTION BACKPROPAGATION
+# --------------------------------------------------
+
+gradient_filters, gradient_filter_biases = convolution_backward(
+    image=sample_image,
+    gradient_feature_maps=gradient_convolution_maps,
+    filters=filters
+)
+
+print("\nCONVOLUTION BACKPROPAGATION")
+print("Gradient filters:", gradient_filters.shape)
+print("Gradient filter biases:", gradient_filter_biases.shape)
+
+print("\nGradient filter biases:")
+print(gradient_filter_biases)
+
+print(
+    "\nGradient filter 0 norm:",
+    np.linalg.norm(gradient_filters[0])
+)
+
+print(
+    "Gradient filter 1 norm:",
+    np.linalg.norm(gradient_filters[1])
 )
