@@ -1,5 +1,7 @@
 import numpy as np
-
+"""
+Understanding of the flow and backpragation
+"""
 
 # --------------------------------------------------
 # 1. LOAD DATASET
