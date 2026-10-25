@@ -293,6 +293,27 @@ def convolution_backward(image, gradient_feature_maps, filters):
 
     return gradient_filters, gradient_filter_biases
 
+def update_parameters(
+    filters,
+    filter_biases,
+    classifier_weights,
+    classifier_biases,
+    gradient_filters,
+    gradient_filter_biases,
+    gradient_classifier_weights,
+    gradient_classifier_biases,
+    learning_rate
+):
+    filters -= learning_rate * gradient_filters
+    filter_biases -= learning_rate * gradient_filter_biases
+
+    classifier_weights -= (
+        learning_rate * gradient_classifier_weights
+    )
+    classifier_biases -= (
+        learning_rate * gradient_classifier_biases
+    )
+
 # --------------------------------------------------
 # 6. SOFTMAX
 # --------------------------------------------------
@@ -370,6 +391,76 @@ def dense_layer_backward(
         gradient_flattened_features
     )
 
+def train_one_sample(image, true_class, learning_rate=0.001):
+
+    # 1. Forward pass
+    result = forward_pass(image, return_intermediates=True)
+
+    # 2. Calculate loss before the parameter update
+    initial_loss = cross_entropy_loss(
+        result["probabilities"],
+        true_class
+    )
+
+    # 3. Backpropagation through the dense layer
+    (
+        gradient_logits,
+        gradient_classifier_weights,
+        gradient_classifier_biases,
+        gradient_flattened_features
+    ) = dense_layer_backward(
+        flattened_features=result["flattened_features"],
+        probabilities=result["probabilities"],
+        true_class=true_class,
+        classifier_weights=classifier_weights
+    )
+
+    # 4. Reverse flattening
+    gradient_pooled_maps = gradient_flattened_features.reshape(
+        result["pooled_maps"].shape
+    )
+
+    # 5. Backpropagation through max pooling
+    gradient_activated_maps = max_pooling_backward(
+        gradient_pooled=gradient_pooled_maps,
+        max_positions=result["max_positions"],
+        input_shape=result["activated_maps"].shape,
+        pool_size=2,
+        stride=2
+    )
+
+    # 6. Backpropagation through ReLU
+    gradient_convolution_maps = relu_backward(
+        gradient_output=gradient_activated_maps,
+        convolution_maps=result["convolution_maps"]
+    )
+
+    # 7. Backpropagation through convolution
+    (
+        gradient_filters,
+        gradient_filter_biases
+    ) = convolution_backward(
+        image=image,
+        gradient_feature_maps=gradient_convolution_maps,
+        filters=filters
+    )
+
+    # 8. Update all parameters after calculating all gradients
+    update_parameters(
+        filters=filters,
+        filter_biases=filter_biases,
+        classifier_weights=classifier_weights,
+        classifier_biases=classifier_biases,
+        gradient_filters=gradient_filters,
+        gradient_filter_biases=gradient_filter_biases,
+        gradient_classifier_weights=gradient_classifier_weights,
+        gradient_classifier_biases=gradient_classifier_biases,
+        learning_rate=learning_rate
+    )
+
+    # Return the loss measured before this update.
+    # No extra forward pass is needed here.
+    return initial_loss 
 
 # --------------------------------------------------
 # 7. FORWARD PASS FOR ONE IMAGE
@@ -421,147 +512,181 @@ def forward_pass(image, return_intermediates=False):
 
 
 # --------------------------------------------------
-# 8. TEST THE FORWARD PASS
+# 8. EVALUATE MODEL ON A DATASET
 # --------------------------------------------------
 
+def evaluate_model(images, labels):
+    total_loss = 0.0
+    correct_predictions = 0
+
+    for image, true_class in zip(images, labels):
+        probabilities = forward_pass(image)
+
+        total_loss += cross_entropy_loss(
+            probabilities,
+            int(true_class)
+        )
+
+        predicted_class = int(np.argmax(probabilities))
+
+        if predicted_class == true_class:
+            correct_predictions += 1
+
+    average_loss = total_loss / len(images)
+    accuracy = correct_predictions / len(images)
+
+    return average_loss, accuracy
+
+# --------------------------------------------------
+# 8. TRAINING LOOP
+# --------------------------------------------------
+
+EPOCHS = 30
+LEARNING_RATE = 0.001
+REPORT_EVERY = 10
+
+# Select one image to track throughout training.
 sample_index = 0
 sample_image = X_train[sample_index]
+true_class = int(y_train[sample_index])
 
-result = forward_pass(
-    sample_image,
-    return_intermediates=True
+# Measure the initial model before any training.
+initial_train_loss, initial_train_accuracy = evaluate_model(
+    X_train, y_train
 )
 
-print("\nFORWARD PASS SHAPES")
-print("Input:", sample_image.shape)
-print("Convolution:", result["convolution_maps"].shape)
-print("After ReLU:", result["activated_maps"].shape)
-print("After pooling:", result["pooled_maps"].shape)
-print("Flattened:", result["flattened_features"].shape)
-print("Logits:", result["logits"].shape)
-print("Probabilities:", result["probabilities"].shape)
+initial_val_loss, initial_val_accuracy = evaluate_model(
+    X_val, y_val
+)
 
-predicted_class = np.argmax(result["probabilities"])
+initial_probabilities = forward_pass(sample_image).copy()
 
-print("\nActual class:", CLASS_NAMES[y_train[sample_index]])
-print("Predicted class:", CLASS_NAMES[predicted_class])
+probability_history = [initial_probabilities.copy()]
 
-print("\nClass probabilities:")
+# Store the best parameters based on validation loss.
+best_val_loss = initial_val_loss
+best_epoch = 0
 
-for class_name, probability in zip(
-    CLASS_NAMES,
-    result["probabilities"]
+best_parameters = {
+    "filters": filters.copy(),
+    "filter_biases": filter_biases.copy(),
+    "classifier_weights": classifier_weights.copy(),
+    "classifier_biases": classifier_biases.copy()
+}
+
+# Store metrics for later analysis or plotting.
+training_history = {
+    "epoch": [0],
+    "train_loss": [initial_train_loss],
+    "val_loss": [initial_val_loss],
+    "train_accuracy": [initial_train_accuracy],
+    "val_accuracy": [initial_val_accuracy]
+}
+
+print("\nINITIAL MODEL")
+print(f"Training loss:      {initial_train_loss:.4f}")
+print(f"Training accuracy:  {initial_train_accuracy:.2%}")
+print(f"Validation loss:    {initial_val_loss:.4f}")
+print(f"Validation accuracy:{initial_val_accuracy:.2%}")
+print("Tracked image true class:", CLASS_NAMES[true_class])
+print(
+    "Tracked image initial prediction:",
+    CLASS_NAMES[np.argmax(initial_probabilities)]
+)
+
+# Reproducible shuffling.
+rng = np.random.default_rng(123)
+
+print("\nTRAINING STARTED")
+
+for epoch in range(1, EPOCHS + 1):
+
+    indices = rng.permutation(len(X_train))
+
+    for index in indices:
+        image = X_train[index]
+        true_label = int(y_train[index])
+
+        train_one_sample(
+            image=image,
+            true_class=true_label,
+            learning_rate=LEARNING_RATE
+        )
+
+    # Report only every REPORT_EVERY epochs.
+    if epoch % REPORT_EVERY == 0 or epoch == EPOCHS:
+
+        # Evaluate without updating any parameters.
+        train_loss, train_accuracy = evaluate_model(
+            X_train, y_train
+        )
+
+        val_loss, val_accuracy = evaluate_model(
+            X_val, y_val
+        )
+
+        current_probabilities = forward_pass(sample_image).copy()
+
+        probability_history.append(current_probabilities)
+
+        training_history["epoch"].append(epoch)
+        training_history["train_loss"].append(train_loss)
+        training_history["val_loss"].append(val_loss)
+        training_history["train_accuracy"].append(train_accuracy)
+        training_history["val_accuracy"].append(val_accuracy)
+
+        # Save parameters whenever validation loss improves.
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_epoch = epoch
+
+            best_parameters = {
+                "filters": filters.copy(),
+                "filter_biases": filter_biases.copy(),
+                "classifier_weights": classifier_weights.copy(),
+                "classifier_biases": classifier_biases.copy()
+            }
+
+        print(f"\n--- Epoch {epoch}/{EPOCHS} ---")
+        print(f"Training loss:      {train_loss:.4f}")
+        print(f"Training accuracy:  {train_accuracy:.2%}")
+        print(f"Validation loss:    {val_loss:.4f}")
+        print(f"Validation accuracy:{val_accuracy:.2%}")
+
+        print("Tracked image probabilities:")
+
+        for name, probability in zip(
+            CLASS_NAMES, current_probabilities
+        ):
+            print(f"  {name:10s}: {probability:.4f}")
+
+# Restore the best parameters observed during training.
+filters[:] = best_parameters["filters"]
+filter_biases[:] = best_parameters["filter_biases"]
+classifier_weights[:] = best_parameters["classifier_weights"]
+classifier_biases[:] = best_parameters["classifier_biases"]
+
+print("\nTRAINING FINISHED")
+print(f"Best validation loss: {best_val_loss:.4f}")
+print(f"Best epoch: {best_epoch}")
+
+# Compare the tracked image before training and with the best model.
+final_probabilities = forward_pass(sample_image).copy()
+
+print("\nPROBABILITY COMPARISON")
+print(f"True class: {CLASS_NAMES[true_class]}")
+print(f"{'Class':10s} {'Before':>10s} {'After':>10s} {'Change':>10s}")
+
+for name, before, after in zip(
+    CLASS_NAMES, initial_probabilities, final_probabilities
 ):
-    print(f"{class_name:10s}: {probability:.4f}")
+    print(
+        f"{name:10s} {before:10.4f} "
+        f"{after:10.4f} {after - before:+10.4f}"
+    )
 
 print(
-    "\nProbability sum:",
-    np.sum(result["probabilities"])
+    "\nFinal prediction using best model:",
+    CLASS_NAMES[np.argmax(final_probabilities)]
 )
 
-loss = cross_entropy_loss(
-    result["probabilities"],
-    y_train[sample_index]
-)
-
-print("\nCross-entropy loss:", loss)
-
-# --------------------------------------------------
-# 9. TEST DENSE-LAYER BACKPROPAGATION
-# --------------------------------------------------
-
-(
-    gradient_logits,
-    gradient_classifier_weights,
-    gradient_classifier_biases,
-    gradient_flattened_features
-) = dense_layer_backward(
-    result["flattened_features"],
-    result["probabilities"],
-    y_train[sample_index],
-    classifier_weights
-)
-
-print("\nDENSE-LAYER BACKPROPAGATION")
-print("Gradient logits:", gradient_logits.shape)
-print(
-    "Gradient classifier weights:",
-    gradient_classifier_weights.shape
-)
-print(
-    "Gradient classifier biases:",
-    gradient_classifier_biases.shape
-)
-print(
-    "Gradient flattened features:",
-    gradient_flattened_features.shape
-)
-
-print("\nGradient logits values:")
-print(gradient_logits)
-
-print(
-    "\nGradient sum:",
-    np.sum(gradient_logits)
-)
-
-# --------------------------------------------------
-# 10. BACKPROPAGATION THROUGH FLATTEN, POOLING, RELU
-# --------------------------------------------------
-
-# A. Reverse flattening.
-gradient_pooled_maps = gradient_flattened_features.reshape(
-    result["pooled_maps"].shape
-)
-
-# B. Reverse max pooling.
-gradient_activated_maps = max_pooling_backward(
-    gradient_pooled=gradient_pooled_maps,
-    max_positions=result["max_positions"],
-    input_shape=result["activated_maps"].shape,
-    pool_size=2,
-    stride=2
-)
-
-# C. Reverse ReLU.
-gradient_convolution_maps = relu_backward(
-    gradient_output=gradient_activated_maps,
-    convolution_maps=result["convolution_maps"]
-)
-
-print("\nPOOLING AND RELU BACKPROPAGATION")
-print("Gradient pooled maps:", gradient_pooled_maps.shape)
-print("Gradient activated maps:", gradient_activated_maps.shape)
-print("Gradient convolution maps:", gradient_convolution_maps.shape)
-
-print(
-    "Nonzero convolution gradients:",
-    np.count_nonzero(gradient_convolution_maps)
-)
-
-# --------------------------------------------------
-# 11. CONVOLUTION BACKPROPAGATION
-# --------------------------------------------------
-
-gradient_filters, gradient_filter_biases = convolution_backward(
-    image=sample_image,
-    gradient_feature_maps=gradient_convolution_maps,
-    filters=filters
-)
-
-print("\nCONVOLUTION BACKPROPAGATION")
-print("Gradient filters:", gradient_filters.shape)
-print("Gradient filter biases:", gradient_filter_biases.shape)
-
-print("\nGradient filter biases:")
-print(gradient_filter_biases)
-
-print(
-    "\nGradient filter 0 norm:",
-    np.linalg.norm(gradient_filters[0])
-)
-
-print(
-    "Gradient filter 1 norm:",
-    np.linalg.norm(gradient_filters[1])
-)
