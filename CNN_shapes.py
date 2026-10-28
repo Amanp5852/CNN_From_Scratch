@@ -1,7 +1,5 @@
 import numpy as np
-"""
-Understanding of the flow and backpragation
-"""
+import matplotlib.pyplot as plt
 
 # --------------------------------------------------
 # 1. LOAD DATASET
@@ -690,3 +688,108 @@ print(
     CLASS_NAMES[np.argmax(final_probabilities)]
 )
 
+# --------------------------------------------------
+# 10. CONFUSION MATRIX - VALIDATION SET
+# --------------------------------------------------
+
+# Number of classes
+num_classes = len(CLASS_NAMES)
+
+# Rows = actual classes, columns = predicted classes
+confusion_matrix = np.zeros(
+    (num_classes, num_classes),
+    dtype=np.int64
+)
+
+# Predict each validation image
+for image, true_label in zip(X_val, y_val):
+
+    probabilities = forward_pass(image)
+
+    predicted_label = int(np.argmax(probabilities))
+    true_label = int(true_label)
+
+    confusion_matrix[true_label, predicted_label] += 1
+
+
+# Print the numerical confusion matrix
+print("\nCONFUSION MATRIX")
+print("Rows = Actual | Columns = Predicted\n")
+
+print(f"{'Actual / Pred.':15s}", end="")
+
+for name in CLASS_NAMES:
+    print(f"{name:>12s}", end="")
+
+print()
+
+for i, name in enumerate(CLASS_NAMES):
+    print(f"{name:15s}", end="")
+
+    for j in range(num_classes):
+        print(f"{confusion_matrix[i, j]:12d}", end="")
+
+    print()
+
+
+# Calculate accuracy separately for each actual class
+print("\nPER-CLASS ACCURACY")
+
+for i, name in enumerate(CLASS_NAMES):
+
+    total_actual = np.sum(confusion_matrix[i])
+    correct = confusion_matrix[i, i]
+
+    accuracy = correct / total_actual if total_actual > 0 else 0.0
+
+    print(
+        f"{name:10s}: "
+        f"{correct}/{total_actual} correct "
+        f"({accuracy:.2%})"
+    )
+
+
+# Overall validation accuracy from the matrix
+overall_accuracy = (
+    np.trace(confusion_matrix) / np.sum(confusion_matrix)
+)
+
+print(f"\nOverall validation accuracy: {overall_accuracy:.2%}")
+
+
+# Plot the confusion matrix
+fig, ax = plt.subplots(figsize=(8, 6))
+
+image = ax.imshow(confusion_matrix, cmap="Blues")
+
+ax.set_title("CNN Confusion Matrix - Validation Set")
+ax.set_xlabel("Predicted Class")
+ax.set_ylabel("Actual Class")
+
+ax.set_xticks(np.arange(num_classes))
+ax.set_yticks(np.arange(num_classes))
+
+ax.set_xticklabels(CLASS_NAMES, rotation=45, ha="right")
+ax.set_yticklabels(CLASS_NAMES)
+
+# Write each cell's count into the plot
+threshold = confusion_matrix.max() / 2
+
+for i in range(num_classes):
+    for j in range(num_classes):
+
+        value = confusion_matrix[i, j]
+
+        ax.text(
+            j,
+            i,
+            str(value),
+            ha="center",
+            va="center",
+            color="white" if value > threshold else "black"
+        )
+
+fig.colorbar(image, ax=ax, label="Number of images")
+fig.tight_layout()
+
+plt.show()
