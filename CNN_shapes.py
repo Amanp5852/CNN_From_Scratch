@@ -1,5 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
+saved_model = np.load("data/trained_shapes_cnn.npz")
+import tkinter as tk
+from tkinter import ttk
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # --------------------------------------------------
 # 1. LOAD DATASET
@@ -33,7 +38,7 @@ print("Number of classes:", len(CLASS_NAMES))
 
 rng = np.random.default_rng(42)
 
-NUM_FILTERS = 2
+NUM_FILTERS = 8
 FILTER_SIZE = 3
 NUM_CLASSES = len(CLASS_NAMES)
 
@@ -60,6 +65,14 @@ classifier_weights = rng.normal(
 )
 
 classifier_biases = np.zeros(NUM_CLASSES)
+
+# # Load the trained parameters, replacing the random initialization.
+# filters = saved_model["filters"]
+# filter_biases = saved_model["filter_biases"]
+# classifier_weights = saved_model["classifier_weights"]
+# classifier_biases = saved_model["classifier_biases"]
+
+# print("Saved trained model loaded.")
 
 
 # --------------------------------------------------
@@ -664,6 +677,17 @@ filter_biases[:] = best_parameters["filter_biases"]
 classifier_weights[:] = best_parameters["classifier_weights"]
 classifier_biases[:] = best_parameters["classifier_biases"]
 
+#Save the best trained parameters for future inspection.
+np.savez(
+    "data/trained_shapes_cnn.npz",
+    filters=filters,
+    filter_biases=filter_biases,
+    classifier_weights=classifier_weights,
+    classifier_biases=classifier_biases
+)
+
+print("Trained model saved.")
+
 print("\nTRAINING FINISHED")
 print(f"Best validation loss: {best_val_loss:.4f}")
 print(f"Best epoch: {best_epoch}")
@@ -688,108 +712,236 @@ print(
     CLASS_NAMES[np.argmax(final_probabilities)]
 )
 
-# --------------------------------------------------
-# 10. CONFUSION MATRIX - VALIDATION SET
-# --------------------------------------------------
+# # --------------------------------------------------
+# # 10. CONFUSION MATRIX - VALIDATION SET
+# # --------------------------------------------------
 
-# Number of classes
-num_classes = len(CLASS_NAMES)
+# # Number of classes
+# num_classes = len(CLASS_NAMES)
 
-# Rows = actual classes, columns = predicted classes
-confusion_matrix = np.zeros(
-    (num_classes, num_classes),
-    dtype=np.int64
-)
+# # Rows = actual classes, columns = predicted classes
+# confusion_matrix = np.zeros(
+#     (num_classes, num_classes),
+#     dtype=np.int64
+# )
 
-# Predict each validation image
-for image, true_label in zip(X_val, y_val):
+# # Predict each validation image
+# for image, true_label in zip(X_val, y_val):
 
-    probabilities = forward_pass(image)
+#     probabilities = forward_pass(image)
 
-    predicted_label = int(np.argmax(probabilities))
-    true_label = int(true_label)
+#     predicted_label = int(np.argmax(probabilities))
+#     true_label = int(true_label)
 
-    confusion_matrix[true_label, predicted_label] += 1
-
-
-# Print the numerical confusion matrix
-print("\nCONFUSION MATRIX")
-print("Rows = Actual | Columns = Predicted\n")
-
-print(f"{'Actual / Pred.':15s}", end="")
-
-for name in CLASS_NAMES:
-    print(f"{name:>12s}", end="")
-
-print()
-
-for i, name in enumerate(CLASS_NAMES):
-    print(f"{name:15s}", end="")
-
-    for j in range(num_classes):
-        print(f"{confusion_matrix[i, j]:12d}", end="")
-
-    print()
+#     confusion_matrix[true_label, predicted_label] += 1
 
 
-# Calculate accuracy separately for each actual class
-print("\nPER-CLASS ACCURACY")
+# # Print the numerical confusion matrix
+# print("\nCONFUSION MATRIX")
+# print("Rows = Actual | Columns = Predicted\n")
 
-for i, name in enumerate(CLASS_NAMES):
+# print(f"{'Actual / Pred.':15s}", end="")
 
-    total_actual = np.sum(confusion_matrix[i])
-    correct = confusion_matrix[i, i]
+# for name in CLASS_NAMES:
+#     print(f"{name:>12s}", end="")
 
-    accuracy = correct / total_actual if total_actual > 0 else 0.0
+# print()
 
-    print(
-        f"{name:10s}: "
-        f"{correct}/{total_actual} correct "
-        f"({accuracy:.2%})"
-    )
+# for i, name in enumerate(CLASS_NAMES):
+#     print(f"{name:15s}", end="")
 
+#     for j in range(num_classes):
+#         print(f"{confusion_matrix[i, j]:12d}", end="")
 
-# Overall validation accuracy from the matrix
-overall_accuracy = (
-    np.trace(confusion_matrix) / np.sum(confusion_matrix)
-)
-
-print(f"\nOverall validation accuracy: {overall_accuracy:.2%}")
+#     print()
 
 
-# Plot the confusion matrix
-fig, ax = plt.subplots(figsize=(8, 6))
+# # Calculate accuracy separately for each actual class
+# print("\nPER-CLASS ACCURACY")
 
-image = ax.imshow(confusion_matrix, cmap="Blues")
+# for i, name in enumerate(CLASS_NAMES):
 
-ax.set_title("CNN Confusion Matrix - Validation Set")
-ax.set_xlabel("Predicted Class")
-ax.set_ylabel("Actual Class")
+#     total_actual = np.sum(confusion_matrix[i])
+#     correct = confusion_matrix[i, i]
 
-ax.set_xticks(np.arange(num_classes))
-ax.set_yticks(np.arange(num_classes))
+#     accuracy = correct / total_actual if total_actual > 0 else 0.0
 
-ax.set_xticklabels(CLASS_NAMES, rotation=45, ha="right")
-ax.set_yticklabels(CLASS_NAMES)
+#     print(
+#         f"{name:10s}: "
+#         f"{correct}/{total_actual} correct "
+#         f"({accuracy:.2%})"
+#     )
 
-# Write each cell's count into the plot
-threshold = confusion_matrix.max() / 2
 
-for i in range(num_classes):
-    for j in range(num_classes):
+# # Overall validation accuracy from the matrix
+# overall_accuracy = (
+#     np.trace(confusion_matrix) / np.sum(confusion_matrix)
+# )
 
-        value = confusion_matrix[i, j]
+# print(f"\nOverall validation accuracy: {overall_accuracy:.2%}")
 
-        ax.text(
-            j,
-            i,
-            str(value),
-            ha="center",
-            va="center",
-            color="white" if value > threshold else "black"
-        )
 
-fig.colorbar(image, ax=ax, label="Number of images")
-fig.tight_layout()
+# # Plot the confusion matrix
+# fig, ax = plt.subplots(figsize=(8, 6))
 
-plt.show()
+# image = ax.imshow(confusion_matrix, cmap="Blues")
+
+# ax.set_title("CNN Confusion Matrix - Validation Set")
+# ax.set_xlabel("Predicted Class")
+# ax.set_ylabel("Actual Class")
+
+# ax.set_xticks(np.arange(num_classes))
+# ax.set_yticks(np.arange(num_classes))
+
+# ax.set_xticklabels(CLASS_NAMES, rotation=45, ha="right")
+# ax.set_yticklabels(CLASS_NAMES)
+
+# # Write each cell's count into the plot
+# threshold = confusion_matrix.max() / 2
+
+# for i in range(num_classes):
+#     for j in range(num_classes):
+
+#         value = confusion_matrix[i, j]
+
+#         ax.text(
+#             j,
+#             i,
+#             str(value),
+#             ha="center",
+#             va="center",
+#             color="white" if value > threshold else "black"
+#         )
+
+# fig.colorbar(image, ax=ax, label="Number of images")
+# fig.tight_layout()
+
+# plt.show()
+
+# # --------------------------------------------------
+# # INSPECT SQUARE <-> PENTAGON MISCLASSIFICATIONS
+# # --------------------------------------------------
+
+# # Store all misclassified examples
+# misclassified = []
+
+# for image, true_label in zip(X_val, y_val):
+
+#     # Predict using the saved trained parameters
+#     probabilities = forward_pass(image)
+
+#     predicted_label = int(np.argmax(probabilities))
+#     true_label = int(true_label)
+
+#     if predicted_label != true_label:
+#         misclassified.append(
+#             (image, true_label, predicted_label, probabilities.copy())
+#         )
+
+# print(f"\nTotal misclassified images: {len(misclassified)}")
+
+
+# # Select only square <-> pentagon errors
+# square_id = CLASS_NAMES.index("square")
+# pentagon_id = CLASS_NAMES.index("pentagon")
+
+# selected_errors = [
+#     item for item in misclassified
+#     if (
+#         (item[1] == square_id and item[2] == pentagon_id)
+#         or
+#         (item[1] == pentagon_id and item[2] == square_id)
+#     )
+# ]
+
+# print("Square/pentagon confusion examples:", len(selected_errors))
+
+
+# # Display the selected images
+# if selected_errors:
+#     # Number of images displayed in each row
+#     columns = 4
+
+#     # Create a scrollable application window
+#     root = tk.Tk()
+#     root.title("Square-Pentagon Misclassifications")
+#     root.geometry("1200x800")
+
+#     # Canvas and scrollbar
+#     container = ttk.Frame(root)
+#     container.pack(fill="both", expand=True)
+
+#     canvas = tk.Canvas(container)
+#     scrollbar = ttk.Scrollbar(
+#         container, orient="vertical", command=canvas.yview
+#     )
+
+#     scroll_frame = ttk.Frame(canvas)
+
+#     scroll_frame.bind(
+#         "<Configure>",
+#         lambda event: canvas.configure(
+#             scrollregion=canvas.bbox("all")
+#         )
+#     )
+
+#     canvas.create_window(
+#         (0, 0), window=scroll_frame, anchor="nw"
+#     )
+#     canvas.configure(yscrollcommand=scrollbar.set)
+
+#     canvas.pack(side="left", fill="both", expand=True)
+#     scrollbar.pack(side="right", fill="y")
+
+#     # Make the mouse wheel scroll through the images
+#     def mouse_wheel(event):
+#         canvas.yview_scroll(
+#             int(-1 * (event.delta / 120)), "units"
+#         )
+
+#     canvas.bind_all("<MouseWheel>", mouse_wheel)
+
+#     # Create a separate figure for the image grid
+#     rows = (len(selected_errors) + columns - 1) // columns
+
+#     fig = Figure(
+#         figsize=(12, 3 * rows),
+#         constrained_layout=True
+#     )
+
+#     for i, (image, true_label, predicted_label, probabilities) in enumerate(
+#         selected_errors
+#     ):
+#         ax = fig.add_subplot(rows, columns, i + 1)
+
+#         ax.imshow(np.clip(image, 0, 1))
+
+#         true_name = CLASS_NAMES[true_label]
+#         predicted_name = CLASS_NAMES[predicted_label]
+#         confidence = probabilities[predicted_label]
+
+#         ax.set_title(
+#             f"Actual: {true_name}\n"
+#             f"Predicted: {predicted_name} ({confidence:.1%})",
+#             fontsize=10
+#         )
+
+#         ax.set_xticks([])
+#         ax.set_yticks([])
+
+#     fig.suptitle(
+#         f"Square-Pentagon Misclassifications ({len(selected_errors)} images)",
+#         fontsize=14
+#     )
+
+#     # Embed the Matplotlib figure inside the scrollable window
+#     figure_canvas = FigureCanvasTkAgg(
+#         fig, master=scroll_frame
+#     )
+#     figure_canvas.draw()
+#     figure_canvas.get_tk_widget().pack()
+
+#     root.mainloop()
+
+# else:
+#     print("No square/pentagon errors found.")
