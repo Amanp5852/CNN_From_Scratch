@@ -552,7 +552,7 @@ def evaluate_model(images, labels):
 # 8. TRAINING LOOP
 # --------------------------------------------------
 
-EPOCHS = 30
+EPOCHS = 50
 LEARNING_RATE = 0.001
 REPORT_EVERY = 10
 
