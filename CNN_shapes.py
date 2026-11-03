@@ -552,7 +552,7 @@ def evaluate_model(images, labels):
 # 8. TRAINING LOOP
 # --------------------------------------------------
 
-EPOCHS = 50
+EPOCHS = 32
 LEARNING_RATE = 0.001
 REPORT_EVERY = 10
 
@@ -671,7 +671,7 @@ for epoch in range(1, EPOCHS + 1):
         ):
             print(f"  {name:10s}: {probability:.4f}")
 
-# Restore the best parameters observed during training.
+#Restore the best parameters observed during training.
 filters[:] = best_parameters["filters"]
 filter_biases[:] = best_parameters["filter_biases"]
 classifier_weights[:] = best_parameters["classifier_weights"]
